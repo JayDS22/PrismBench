@@ -3,3 +3,8 @@ autogen
 scikit-learn
 langgraph
 numpy
+pandas
+matplotlib
+openai
+anthropic
+tabulate
