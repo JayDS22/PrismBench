@@ -9,3 +9,7 @@ openai
 anthropic
 tabulate
 tiktoken
+pyyaml
+python-dotenv
+pyarrow
+requests
