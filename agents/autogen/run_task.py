@@ -76,7 +76,7 @@ def run(prompt, task_config, work_dir, output_dir):
     model = task_config.get("model", "gpt-4o")
     max_replies = task_config.get("max_auto_reply", 10)
 
-    log(f"[autogen] Starting {task_id} | model={model} | max_replies={max_replies}")
+    log.info(f"[autogen] Starting {task_id} | model={model} | max_replies={max_replies}")
 
     os.makedirs(output_dir, exist_ok=True)
     os.makedirs(work_dir, exist_ok=True)
@@ -122,12 +122,12 @@ def run(prompt, task_config, work_dir, output_dir):
 
         code = _find_solution(output_dir, work_dir)
         if code is None:
-            log(f"[autogen] WARNING: solution.py not found for {task_id}")
+            log.info(f"[autogen] WARNING: solution.py not found for {task_id}")
         elif not os.path.exists(os.path.join(output_dir, "solution.py")):
             with open(os.path.join(output_dir, "solution.py"), "w") as f:
                 f.write(code)
 
-        log(f"[autogen] {task_id} complete | {elapsed:.1f}s | tokens={prompt_tokens + completion_tokens} | cost=${cost_usd:.4f}")
+        log.info(f"[autogen] {task_id} complete | {elapsed:.1f}s | tokens={prompt_tokens + completion_tokens} | cost=${cost_usd:.4f}")
 
         return make_result(
             agent_id="autogen",
@@ -135,12 +135,13 @@ def run(prompt, task_config, work_dir, output_dir):
             generated_code=code,
             wall_clock_sec=elapsed,
             raw_output=raw_output[-10000:],  # tail is more relevant than head
-            prompt_tokens=prompt_tokens,
-            completion_tokens=completion_tokens,
+            input_tokens=prompt_tokens,
+            output_tokens=completion_tokens,
+            tokens_used=prompt_tokens + completion_tokens,
             cost_usd=cost_usd,
         )
 
     except Exception as e:
         elapsed = time.perf_counter() - start
-        log(f"[autogen] {task_id} FAILED after {elapsed:.1f}s: {e}")
+        log.info(f"[autogen] {task_id} FAILED after {elapsed:.1f}s: {e}")
         return make_result("autogen", task_id, wall_clock_sec=elapsed, error=str(e))
