@@ -1,5 +1,5 @@
 """
-DS-RouteBench Agent: LangGraph
+Agent: LangGraph
 Category: Stateful Agent Graphs (LOW PRIORITY)
 """
 import os, sys, time

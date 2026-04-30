@@ -1,5 +1,5 @@
 """
-DS-RouteBench Agent: smolagents (HuggingFace)
+Agent: smolagents (HuggingFace)
 Category: Code-first iterative agent
 """
 import os, sys, time

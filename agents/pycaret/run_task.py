@@ -1,5 +1,5 @@
 """
-DS-RouteBench Agent: PyCaret
+Agent: PyCaret
 Category: AutoML / Low-code (local, no tokens)
 """
 import os
