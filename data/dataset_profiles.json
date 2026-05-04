@@ -33,30 +33,29 @@
   "air_quality": {
     "name": "air_quality",
     "rows": 2000,
-    "cols": 4,
+    "cols": 6,
     "modality": "time_series",
     "target": "value",
     "missing_total": 0,
     "missing_pct": 0.0,
-    "memory_mb": 0.1,
+    "memory_mb": 0.19,
     "dtypes": {
-      "str": "2",
-      "datetime64[us]": "1",
-      "float64": "1"
+      "str": "3",
+      "float64": "3"
     }
   },
   "amazon_reviews": {
     "name": "amazon_reviews",
     "rows": 10000,
-    "cols": 3,
+    "cols": 4,
     "modality": "nlp",
     "target": "rating",
     "missing_total": 0,
     "missing_pct": 0.0,
-    "memory_mb": 3.46,
+    "memory_mb": 3.47,
     "dtypes": {
+      "str": "2",
       "int64": "1",
-      "str": "1",
       "bool": "1"
     }
   },
