@@ -1,0 +1,75 @@
+{
+  "heart_disease": {
+    "name": "heart_disease",
+    "rows": 303,
+    "cols": 14,
+    "modality": "tabular",
+    "target": "target",
+    "missing_total": 6,
+    "missing_pct": 0.14,
+    "memory_mb": 0.03,
+    "dtypes": {
+      "float64": "13",
+      "int64": "1"
+    }
+  },
+  "nyc_taxi": {
+    "name": "nyc_taxi",
+    "rows": 48271,
+    "cols": 19,
+    "modality": "tabular",
+    "target": "fare_amount",
+    "missing_total": 0,
+    "missing_pct": 0.0,
+    "memory_mb": 7.2,
+    "dtypes": {
+      "float64": "10",
+      "int32": "3",
+      "int64": "3",
+      "datetime64[us]": "2",
+      "str": "1"
+    }
+  },
+  "air_quality": {
+    "name": "air_quality",
+    "rows": 2000,
+    "cols": 4,
+    "modality": "time_series",
+    "target": "value",
+    "missing_total": 0,
+    "missing_pct": 0.0,
+    "memory_mb": 0.1,
+    "dtypes": {
+      "str": "2",
+      "datetime64[us]": "1",
+      "float64": "1"
+    }
+  },
+  "amazon_reviews": {
+    "name": "amazon_reviews",
+    "rows": 10000,
+    "cols": 3,
+    "modality": "nlp",
+    "target": "rating",
+    "missing_total": 0,
+    "missing_pct": 0.0,
+    "memory_mb": 3.46,
+    "dtypes": {
+      "int64": "1",
+      "str": "1",
+      "bool": "1"
+    }
+  },
+  "cifar10": {
+    "name": "cifar10",
+    "rows": 5000,
+    "modality": "image",
+    "target": "label"
+  },
+  "urbansound8k": {
+    "name": "urbansound8k",
+    "rows": 8732,
+    "modality": "audio",
+    "target": "classID"
+  }
+}
