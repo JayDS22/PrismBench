@@ -19,7 +19,7 @@ DATA_ADVERSARIAL = PROJECT_ROOT / "data" / "adversarial"
 RESULTS_DIR  = PROJECT_ROOT / "results"
 AGENTS_DIR   = PROJECT_ROOT / "agents"
 
-load_dotenv(PROJECT_ROOT / "environment" / ".env")
+load_dotenv(PROJECT_ROOT / "environment" / ".env", override=True)
 
 logging.basicConfig(
     level=logging.INFO,

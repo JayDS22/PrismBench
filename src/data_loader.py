@@ -11,6 +11,7 @@ import json
 import argparse
 import pandas as pd
 import numpy as np
+import os
 import pyarrow.parquet as pq
 
 from src.utils import DATA_RAW, DATA_ADVERSARIAL, load_datasets_config, log, save_json, ensure_dir
@@ -57,37 +58,55 @@ def load_nyc_taxi(forced_redownload=False, n_rows=50_000):
 
 
 def load_air_quality(forced_redownload=False):
-    """OpenAQ PM2.5 — time series, falls back to synthetic data if API is unavailable."""
+    """OpenAQ v3 PM2.5 time series for Los Angeles. Requires OPENAQ_API_KEY in environment/.env"""
     path = DATA_RAW / "air_quality.csv"
     if forced_redownload or not path.exists():
-        log("Downloading Air Quality data from OpenAQ API...")
+        log("Downloading Air Quality data from OpenAQ v3 API...")
         import requests
         ensure_dir(DATA_RAW)
+
+        api_key = os.environ.get("OPENAQ_API_KEY", "")
+        headers = {"Accept": "application/json", "X-API-Key": api_key}
         all_rows = []
-        page = 1
-        while len(all_rows) < 5000 and page <= 10:
-            url = (
-                f"https://api.openaq.org/v2/measurements"
-                f"?city=Los Angeles&parameter=pm25&limit=1000&page={page}&order_by=datetime"
-            )
-            try:
-                resp = requests.get(url, timeout=30)
-                data = resp.json().get("results", [])
-                if not data:
-                    break
-                for r in data:
-                    all_rows.append({
-                        "datetime":  r.get("date", {}).get("utc"),
-                        "value":     r.get("value"),
-                        "unit":      r.get("unit"),
-                        "latitude":  r.get("coordinates", {}).get("latitude"),
-                        "longitude": r.get("coordinates", {}).get("longitude"),
-                        "location":  r.get("location"),
-                    })
-                page += 1
-            except Exception as e:
-                log(f"WARNING: OpenAQ API error on page {page}: {e}")
+
+        # Find PM2.5 sensor locations in LA bounding box
+        locations_url = (
+            "https://api.openaq.org/v3/locations"
+            "?bbox=-118.668153,33.703935,-118.155358,34.337306"
+            "&parameters_id=2&limit=10"
+        )
+        try:
+            resp = requests.get(locations_url, timeout=30, headers=headers)
+            locations = resp.json().get("results", [])
+        except Exception as e:
+            log(f"WARNING: OpenAQ v3 locations fetch failed: {e}")
+            locations = []
+
+        # Fetch hourly measurements for each PM2.5 sensor
+        for loc in locations:
+            if len(all_rows) >= 2000:
                 break
+            for sensor in loc.get("sensors", []):
+                if sensor.get("parameter", {}).get("name") != "pm25":
+                    continue
+                sensor_id = sensor["id"]
+                meas_url = (
+                    f"https://api.openaq.org/v3/sensors/{sensor_id}/hours"
+                    f"?date_from=2024-01-01T00:00:00Z&date_to=2024-04-01T00:00:00Z&limit=1000"
+                )
+                try:
+                    r = requests.get(meas_url, timeout=30, headers=headers)
+                    for m in r.json().get("results", []):
+                        all_rows.append({
+                            "datetime":  m.get("period", {}).get("datetimeFrom", {}).get("utc"),
+                            "value":     m.get("value"),
+                            "unit":      "µg/m³",
+                            "location":  loc.get("name"),
+                            "latitude":  loc.get("coordinates", {}).get("latitude"),
+                            "longitude": loc.get("coordinates", {}).get("longitude"),
+                        })
+                except Exception as e:
+                    log(f"WARNING: sensor {sensor_id} fetch failed: {e}")
 
         df = pd.DataFrame(all_rows)
         if len(df) == 0:
@@ -104,35 +123,22 @@ def load_air_quality(forced_redownload=False):
     return df, {"name": "air_quality", "rows": len(df), "cols": len(df.columns),
                 "modality": "time_series", "target": "value"}
 
-
 def load_amazon_reviews(forced_redownload=False, n_rows=10_000):
-    """Amazon Reviews — NLP sentiment classification, falls back to synthetic data."""
+    """Amazon Reviews — NLP sentiment classification."""
     path = DATA_RAW / "amazon_reviews.csv"
     if forced_redownload or not path.exists():
-        log("Downloading Amazon Reviews from HuggingFace...")
+        log("Downloading Amazon Reviews from McAuley Lab...")
         ensure_dir(DATA_RAW)
         try:
-            from datasets import load_dataset
-            ds = load_dataset(
-                "McAuley-Lab/Amazon-Reviews-2023",
-                "raw_review_All_Beauty",
-                split="full",
-                streaming=True,
-                trust_remote_code=True,
-            )
-            rows = []
-            for i, row in enumerate(ds):
-                if i >= n_rows:
-                    break
-                rows.append({
-                    "rating":            row.get("rating"),
-                    "text":              row.get("text", ""),
-                    "verified_purchase": row.get("verified_purchase"),
-                    "title":             row.get("title", ""),
-                })
-            df = pd.DataFrame(rows)
+            import urllib.request
+            url = "https://huggingface.co/datasets/McAuley-Lab/Amazon-Reviews-2023/resolve/main/raw/review_categories/All_Beauty.jsonl"
+            jsonl_path = DATA_RAW / "All_Beauty.jsonl"
+            urllib.request.urlretrieve(url, jsonl_path)
+            df = pd.read_json(jsonl_path, lines=True, nrows=n_rows)
+            df = df[["rating", "text", "verified_purchase", "title"]].head(n_rows)
+            jsonl_path.unlink()
         except Exception as e:
-            log(f"WARNING: HuggingFace load failed: {e} — generating synthetic reviews")
+            log(f"WARNING: direct download failed: {e} — generating synthetic reviews")
             np.random.seed(42)
             ratings = np.random.choice([1, 2, 3, 4, 5], size=n_rows, p=[0.05, 0.05, 0.10, 0.30, 0.50])
             texts = [f"This is a sample review with rating {r}. " * np.random.randint(3, 15) for r in ratings]
@@ -143,7 +149,6 @@ def load_amazon_reviews(forced_redownload=False, n_rows=10_000):
         df = pd.read_csv(path)
     return df, {"name": "amazon_reviews", "rows": len(df), "cols": len(df.columns),
                 "modality": "nlp", "target": "rating"}
-
 
 def load_cifar10(forced_redownload=False):
     """CIFAR-10 — image classification (HuggingFace, 5000 test samples)."""
