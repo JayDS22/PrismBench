@@ -141,12 +141,15 @@ agents:
     name: PandasAI
     category: nl_to_code
     architecture: lightweight
-    local_or_cloud: local
-    version: "2.4"
-    model: "local"
-    pricing_input_per_M: 0
-    pricing_output_per_M: 0
-    install_cmd: "pip install pandasai"
+    local_or_cloud: cloud
+    version: "3.0"
+    model: "gpt-4o"
+    pricing_input_per_M: 2.50
+    pricing_output_per_M: 10.00
+    install_cmd: "pip install pandasai pandasai-openai"
     supports: [tabular]
     generates_code: true
-    notes: "NL → pandas code. Fast, cheap. Breaks on complex multi-step tasks."
+    notes: >
+      NL → pandas code. PandasAI v3 unbundled LLMs into provider extensions,
+      so this routes through pandasai-openai (OPENAI_API_KEY) rather than
+      the default cloud BambooLLM. Breaks on complex multi-step tasks.

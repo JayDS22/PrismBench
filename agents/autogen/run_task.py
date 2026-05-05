@@ -8,6 +8,7 @@ AssistantAgent from `autogen_agentchat.agents` with OpenAIChatCompletionClient.
 import os, sys, time, json, glob
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from src.utils import make_result, log
+from src.cost_tracker import calculate_cost
 
 _SYSTEM_MESSAGE = (
     "You are an expert data science assistant. "
@@ -19,23 +20,20 @@ _SYSTEM_MESSAGE = (
 )
 
 
-def _extract_token_cost(
-    serializable_chat: dict,
-    price_per_1m_input: float = 5.0,
-    price_per_1m_output: float = 15.0,
-) -> tuple[int, int, float]:
-    total_prompt = 0
-    total_completion = 0
-    for messages in serializable_chat.values():
-        for msg in messages:
-            usage = msg.get("usage") or {}
-            total_prompt += usage.get("prompt_tokens", 0)
-            total_completion += usage.get("completion_tokens", 0)
-    cost = (
-        total_prompt / 1_000_000 * price_per_1m_input
-        + total_completion / 1_000_000 * price_per_1m_output
-    )
-    return total_prompt, total_completion, cost
+def _read_usage_from_client(client) -> tuple[int, int]:
+    """Pull aggregated token usage off an autogen OpenAIWrapper.
+
+    `total_usage_summary` is the documented surface; its shape is
+    {'total_cost': float, '<model>': {'cost': ..., 'prompt_tokens': ...,
+    'completion_tokens': ..., 'total_tokens': ...}, ...}.
+    """
+    summary = getattr(client, "total_usage_summary", None) or {}
+    prompt = completion = 0
+    for k, v in summary.items():
+        if isinstance(v, dict):
+            prompt += v.get("prompt_tokens", 0) or 0
+            completion += v.get("completion_tokens", 0) or 0
+    return prompt, completion
 
 
 def _find_solution(output_dir: str, work_dir: str) -> str | None:
@@ -117,7 +115,8 @@ def run(prompt, task_config, work_dir, output_dir):
             agent.name: messages
             for agent, messages in user_proxy.chat_messages.items()
         }
-        prompt_tokens, completion_tokens, cost_usd = _extract_token_cost(serializable)
+        prompt_tokens, completion_tokens = _read_usage_from_client(assistant.client)
+        cost_usd = calculate_cost("autogen", prompt_tokens, completion_tokens)
         raw_output = json.dumps(serializable, default=str)
 
         code = _find_solution(output_dir, work_dir)
