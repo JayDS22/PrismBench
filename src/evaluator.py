@@ -10,12 +10,13 @@ D5: Cost                (API pricing)
 D6: Robustness          (variance across runs + adversarial degradation)
 """
 import os
+import sys
 import json
 import subprocess
 import tempfile
 import numpy as np
 
-from src.utils import log, save_json
+from src.utils import log
 from src.cost_tracker import calculate_cost, calculate_carbon_kg
 
 
@@ -97,8 +98,13 @@ def score_code_quality(code_string):
             f.write(code_string)
             tmp_path = f.name
 
+        # Invoke pylint via the current interpreter so it works whether or
+        # not the venv is activated in the parent shell (.venv/bin/pylint
+        # isn't on PATH when running via `.venv/bin/python -m src.task_runner`).
         result = subprocess.run(
-            ["pylint", tmp_path, "--output-format=json", "--disable=C0114,C0115,C0116,C0103,R,C0301"],
+            [sys.executable, "-m", "pylint", tmp_path,
+             "--output-format=json",
+             "--disable=C0114,C0115,C0116,C0103,R,C0301"],
             capture_output=True, text=True, timeout=30,
         )
 

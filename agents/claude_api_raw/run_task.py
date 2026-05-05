@@ -9,9 +9,7 @@ import re
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 from src.utils import make_result, log
-
-PRICE_PER_1M_INPUT = 3.0
-PRICE_PER_1M_OUTPUT = 15.0
+from src.cost_tracker import calculate_cost
 
 
 def extract_code_from_response(text):
@@ -66,26 +64,25 @@ def run(prompt, task_config, work_dir, output_dir):
 
         text = response.content[0].text
         usage = response.usage
-        cost_usd = (
-            usage.input_tokens / 1_000_000 * PRICE_PER_1M_INPUT
-            + usage.output_tokens / 1_000_000 * PRICE_PER_1M_OUTPUT
-        )
+        in_tok  = usage.input_tokens
+        out_tok = usage.output_tokens
+        cost_usd = calculate_cost("claude_api_raw", in_tok, out_tok)
 
         code = extract_code_from_response(text)
         if code:
             with open(os.path.join(output_dir, "solution.py"), "w") as f:
                 f.write(code)
 
-        log(f"[claude_api_raw] {task_id} complete | {elapsed:.1f}s | tokens={usage.input_tokens + usage.output_tokens} | cost=${cost_usd:.4f}")
+        log(f"[claude_api_raw] {task_id} complete | {elapsed:.1f}s | tokens={in_tok + out_tok} | cost=${cost_usd:.4f}")
 
         return make_result(
             agent_id="claude_api_raw",
             task_id=task_id,
             generated_code=code,
             wall_clock_sec=elapsed,
-            prompt_tokens=usage.input_tokens,
-            completion_tokens=usage.output_tokens,
-            tokens_used=usage.input_tokens + usage.output_tokens,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            tokens_used=in_tok + out_tok,
             cost_usd=cost_usd,
             raw_output=text,
         )
