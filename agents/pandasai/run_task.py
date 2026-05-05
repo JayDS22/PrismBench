@@ -9,8 +9,14 @@ import pandas as pd
 def run(prompt, task_config, work_dir, output_dir):
     try:
         from pandasai import SmartDataframe
-    except ImportError:
-        return make_result("pandasai", task_config.get("task_id", "?"), error="pandasai not installed")
+        from pandasai_openai import OpenAI
+    except ImportError as e:
+        return make_result("pandasai", task_config.get("task_id", "?"),
+                           error=f"pandasai/pandasai-openai not installed: {e}")
+
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return make_result("pandasai", task_config.get("task_id", "?"), error="OPENAI_API_KEY not set")
 
     data_files = [f for f in os.listdir(work_dir) if f.endswith((".csv", ".parquet"))] if os.path.exists(work_dir) else []
     if not data_files:
@@ -21,7 +27,8 @@ def run(prompt, task_config, work_dir, output_dir):
 
     start = time.perf_counter()
     try:
-        sdf = SmartDataframe(df)
+        llm = OpenAI(api_token=api_key)
+        sdf = SmartDataframe(df, config={"llm": llm})
         result_text = sdf.chat(prompt)
         elapsed = time.perf_counter() - start
         return make_result(agent_id="pandasai", task_id=task_config.get("task_id", "?"),
