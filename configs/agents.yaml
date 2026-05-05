@@ -40,17 +40,21 @@ agents:
   # ---------------------------------------------------------------------------
   - id: chatgpt_ada
     name: ChatGPT Advanced Data Analysis
-    category: llm_notebook
-    architecture: conversational
+    category: agentic_coding
+    architecture: code_interpreter
     local_or_cloud: cloud
-    version: "gpt-4o"
+    version: "responses-api"
     model: "gpt-4o"
     pricing_input_per_M: 2.50
     pricing_output_per_M: 10.00
     install_cmd: "pip install openai"
-    supports: [tabular, nlp, time_series, image, audio]
+    supports: [tabular, nlp, time_series]
     generates_code: true
-    notes: "Code Interpreter sandbox. Can upload files, run code, iterate."
+    notes: >
+      AGENTIC: file access + sandboxed Python execution via OpenAI Responses
+      API code_interpreter tool. OpenAI-side peer to claude_code for RQ4
+      (does agentic scaffolding generalize across model providers?).
+      Note: code_interpreter sessions cost ~$0.03 each on top of token usage.
 
   - id: claude_code
     name: Claude Code

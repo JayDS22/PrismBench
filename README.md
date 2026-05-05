@@ -29,16 +29,18 @@ optimizes for.
 |-------|----------|-------------|-------------|
 | AutoGluon | AutoML | Programmatic | Local |
 | PyCaret | AutoML / Low-code | Programmatic | Local |
-| ChatGPT Code Interpreter (GPT-4o) | LLM Notebook Agent | Conversational | Cloud |
+| ChatGPT ADA | Agentic Coding System | Code interpreter (sandboxed exec + file access) | Cloud |
 | Claude Code | Agentic Coding System | Agentic loop (file access, bash, self-correction) | Both |
 | Claude API (raw) | Direct LLM | Single-turn prompt → response | Cloud |
 | Microsoft AutoGen | Multi-Agent Framework | Collaborative agents | Both |
 | smolagents (HuggingFace) | Code-first Agent | Iterative code execution | Both |
 | PandasAI | NL→pandas | Lightweight | Local |
 
-**Key comparison pair:** Claude Code vs Claude API Raw — same underlying model
-(Sonnet), different architecture. Isolates the measurable value of agentic
-scaffolding over raw LLM capability.
+**Key comparison pairs (RQ4 — does agentic scaffolding help?):**
+- *Claude side:* Claude Code vs Claude API Raw — same model (Sonnet), agentic vs single-turn.
+- *OpenAI side:* ChatGPT ADA vs raw GPT-4o (via AutoGen / smolagents) — same model, code interpreter vs no scaffolding.
+
+Two scaffolding-vs-raw pairs across two providers lets RQ4 generalize beyond a single model family.
 
 ## Datasets
 
@@ -101,7 +103,7 @@ empirical benchmark data.
 ├── agents/                    # Per-agent wrappers (standardized interface)
 │   ├── autogluon/run_task.py
 │   ├── pycaret/run_task.py
-│   ├── chatgpt_ada/run_task.py
+│   ├── gemini/run_task.py
 │   ├── claude_code/run_task.py
 │   ├── claude_api_raw/run_task.py
 │   ├── autogen/run_task.py
