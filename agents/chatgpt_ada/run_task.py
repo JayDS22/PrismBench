@@ -100,42 +100,78 @@ def run(prompt, task_config, work_dir, output_dir):
 
         log(f"[chatgpt_ada] {task_id} | files={len(uploaded_file_ids)}")
 
+        instructions = (
+            "You are a data science assistant with access to a Python code "
+            "interpreter and the user's data files. Write complete Python "
+            "code that solves the task end-to-end (explore, train, evaluate, "
+            "save outputs), execute each step in the interpreter to verify "
+            "it works, and produce all artifacts the task asks for "
+            "(predictions.csv, metrics.json, etc.). Put the final "
+            "self-contained solution in a ```python``` code block as the "
+            "LAST thing in your reply."
+        )
+        tool_spec = [{"type": "code_interpreter", "container": container}]
+
         resp = client.responses.create(
             model="gpt-4o",
-            tools=[{"type": "code_interpreter", "container": container}],
-            instructions=(
-                "You are a data science assistant with access to a Python code "
-                "interpreter and the user's data files. Write complete Python "
-                "code that solves the task end-to-end (explore, train, evaluate, "
-                "save outputs), execute each step in the interpreter to verify "
-                "it works, and produce all artifacts the task asks for "
-                "(predictions.csv, metrics.json, etc.). Put the final "
-                "self-contained solution in a ```python``` code block as the "
-                "LAST thing in your reply."
-            ),
+            tools=tool_spec,
+            instructions=instructions,
             input=prompt + file_hint,
             max_output_tokens=8192,
             max_tool_calls=20,
         )
 
+        # The Responses API loop with code_interpreter often bails after the
+        # first tool execution on multi-step tasks. If the agent didn't
+        # generate the file outputs the prompt asked for, chain a follow-up
+        # response with previous_response_id to push it to continue. Up to
+        # 2 continuations (3 calls total) before giving up.
+        all_executed = [_extract_executed_code(resp) or ""]
+        all_text     = [resp.output_text or ""]
+        in_tok_total = getattr(getattr(resp, "usage", None), "input_tokens",  0) or 0
+        out_tok_total = getattr(getattr(resp, "usage", None), "output_tokens", 0) or 0
+
+        for attempt in range(2):
+            joined_code = "\n".join(all_executed).lower()
+            if "predictions.csv" in joined_code or "to_csv" in joined_code:
+                break  # task likely complete
+            log(f"[chatgpt_ada] continuation {attempt + 1}: pushing model to finish")
+            resp = client.responses.create(
+                model="gpt-4o",
+                previous_response_id=resp.id,
+                tools=tool_spec,
+                input=(
+                    "Continue executing now. Train at least three classifiers "
+                    "on the data, evaluate each on the test set, pick the best, "
+                    "and save predictions.csv (columns: y_true, y_pred, y_prob) "
+                    "and metrics.json to /mnt/data/. Do not stop until "
+                    "predictions.csv has been written."
+                ),
+                max_output_tokens=8192,
+                max_tool_calls=15,
+            )
+            all_executed.append(_extract_executed_code(resp) or "")
+            all_text.append(resp.output_text or "")
+            in_tok_total  += getattr(getattr(resp, "usage", None), "input_tokens",  0) or 0
+            out_tok_total += getattr(getattr(resp, "usage", None), "output_tokens", 0) or 0
+
         elapsed = time.perf_counter() - start
-        full_text = resp.output_text or ""
-        # Prefer the model's final markdown ```python``` block (the
-        # self-contained solution per the system instructions); fall back
-        # to concatenated code_interpreter_call source if absent.
-        code = _extract_python_blocks(full_text) or _extract_executed_code(resp)
+        full_text = "\n\n".join(all_text)
+        # Prefer the final markdown block; fall back to concatenated executed code.
+        code = _extract_python_blocks(full_text) or "\n\n".join(c for c in all_executed if c)
         code = _localize_container_paths(code)
 
         if code:
             with open(os.path.join(output_dir, "solution.py"), "w") as f:
                 f.write(code)
 
-        usage = getattr(resp, "usage", None)
-        in_tok  = getattr(usage, "input_tokens", 0) if usage else 0
-        out_tok = getattr(usage, "output_tokens", 0) if usage else 0
-        tot_tok = getattr(usage, "total_tokens", 0) if usage else (in_tok + out_tok)
+        # Use accumulated counts across all chained responses (initial +
+        # any continuations), not just the last one.
+        in_tok  = in_tok_total
+        out_tok = out_tok_total
+        tot_tok = in_tok + out_tok
 
-        log(f"[chatgpt_ada] done {elapsed:.1f}s | tokens={tot_tok} | code={'Y' if code else 'N'}")
+        log(f"[chatgpt_ada] done {elapsed:.1f}s | tokens={tot_tok} | code={'Y' if code else 'N'} | calls={len(all_text)}")
 
         return make_result(
             agent_id="chatgpt_ada", task_id=task_id,

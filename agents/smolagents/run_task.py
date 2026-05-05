@@ -36,8 +36,22 @@ def run(prompt, task_config, work_dir, output_dir):
         out_tok = getattr(agent.monitor, "total_output_token_count", 0) or 0
         cost_usd = calculate_cost("smolagents", in_tok, out_tok)
 
+        # Pull every executed code chunk out of the agent's memory so D2
+        # has something to score. Falls back to None if return_full_code
+        # isn't available (e.g., smolagents API change).
+        try:
+            executed_code = agent.memory.return_full_code() or None
+        except Exception:
+            executed_code = None
+        if executed_code:
+            try:
+                with open(os.path.join(output_dir, "solution.py"), "w") as f:
+                    f.write(executed_code)
+            except Exception:
+                pass
+
         return make_result(agent_id="smolagents", task_id=task_config.get("task_id", "?"),
-                           generated_code=None, wall_clock_sec=elapsed,
+                           generated_code=executed_code, wall_clock_sec=elapsed,
                            input_tokens=in_tok, output_tokens=out_tok,
                            tokens_used=in_tok + out_tok, cost_usd=cost_usd,
                            raw_output=str(result_text)[:10000])

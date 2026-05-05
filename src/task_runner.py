@@ -27,6 +27,23 @@ from src.evaluator import evaluate_result
 SOLUTION_EXEC_TIMEOUT_SEC = 180
 
 
+def _hydrate_generated_code(result, work_dir, output_dir):
+    """Backstop for D2 scoring: if the wrapper didn't push solution.py
+    contents into result['generated_code'], read it from disk. Lets
+    smolagents / pandasai / any future wrapper participate in D2 without
+    each one needing custom code-extraction logic.
+    """
+    if result.get("generated_code"):
+        return
+    for p in (Path(output_dir) / "solution.py", Path(work_dir) / "solution.py"):
+        if p.exists():
+            try:
+                result["generated_code"] = p.read_text()
+                return
+            except Exception:
+                pass
+
+
 def _hydrate_predictions(result, work_dir, output_dir):
     """If the agent didn't already populate y_true / predictions in the
     result dict, look for predictions.csv in work_dir or output_dir. If
@@ -227,6 +244,7 @@ def run_single(agent_id, task_id, run_id=1):
     result.setdefault("wall_clock_sec", t.elapsed)
     result["carbon_kg_measured"] = measured_kg
 
+    _hydrate_generated_code(result, work_dir, out_dir)
     _hydrate_predictions(result, work_dir, out_dir)
 
     save_json(result, out_dir / "result.json")

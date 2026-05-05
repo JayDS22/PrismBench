@@ -9,6 +9,9 @@ data/adversarial/
 # Logs
 logs.log
 pandasai.log
-catboost_info/ 
-AutogluonModels/ 
+catboost_info/
+AutogluonModels/
 mlruns/
+
+# Local notes / findings (personal scratch, not part of the artifact)
+notes/
