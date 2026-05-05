@@ -8,7 +8,7 @@ data/adversarial/
 
 # Logs
 logs.log
-
+pandasai.log
 catboost_info/ 
 AutogluonModels/ 
 mlruns/
