@@ -1,3 +1,14 @@
 
 # Claude Code
 CLAUDE.md
+
+# Data folders
+data/raw/
+data/adversarial/
+
+# Logs
+logs.log
+
+catboost_info/ 
+AutogluonModels/ 
+mlruns/
