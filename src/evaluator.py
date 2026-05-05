@@ -148,24 +148,34 @@ def score_code_quality(code_string):
 
 def score_explainability(result_dict):
     """
-    D3: Did the agent produce SHAP / feature importance?
+    D3: Did the agent produce SHAP / feature importance / narrative explanation?
     Automated detection + LLM-as-Judge for explanation quality.
     """
     code = str(result_dict.get("generated_code", "") or "")
-    raw = str(result_dict.get("raw_output", "") or "")
+    raw  = str(result_dict.get("raw_output", "") or "")
     combined_text = (code + " " + raw).lower()
 
-    has_shap = "shap" in combined_text and ("summary_plot" in combined_text or "shap.plots" in combined_text or "explainer" in combined_text)
-    has_feature_importance = "feature_importance" in combined_text or "feature_importances_" in combined_text
-    has_explanation_text = len([line for line in raw.split("\n") if len(line) > 80]) >= 3  # ≥3 long explanation lines
+    has_shap = "shap" in combined_text and (
+        "summary_plot" in combined_text
+        or "shap.plots" in combined_text
+        or "explainer" in combined_text
+    )
+    has_feature_importance = (
+        "feature_importance" in combined_text
+        or "feature_importances_" in combined_text
+        or "permutation_importance" in combined_text
+    )
+    # One long narrative line in raw output OR two substantial code comments
+    # is enough to flag explanation intent; the LLM judge does the deeper
+    # quality scoring.
+    long_lines_raw = [ln for ln in raw.splitlines()  if len(ln.strip()) > 80]
+    long_comments  = [ln for ln in code.splitlines() if ln.lstrip().startswith("#") and len(ln.strip()) > 40]
+    has_explanation_text = len(long_lines_raw) >= 1 or len(long_comments) >= 2
 
     auto_score = 0.0
-    if has_shap:
-        auto_score += 4.0
-    if has_feature_importance:
-        auto_score += 3.0
-    if has_explanation_text:
-        auto_score += 3.0
+    if has_shap:               auto_score += 4.0
+    if has_feature_importance: auto_score += 3.0
+    if has_explanation_text:   auto_score += 3.0
 
     return {
         "shap_generated": has_shap,

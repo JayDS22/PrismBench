@@ -10,6 +10,7 @@ import sys
 import argparse
 import importlib
 import shutil
+import subprocess
 from pathlib import Path
 
 from src.utils import (
@@ -18,6 +19,69 @@ from src.utils import (
     DATA_RAW, DATA_ADVERSARIAL, AGENTS_DIR, PROJECT_ROOT,
 )
 from src.evaluator import evaluate_result
+
+
+# Wall-clock cap for post-executing an agent's solution.py to recover
+# predictions. Long enough for sklearn fits on the project's datasets,
+# short enough that a runaway script doesn't stall the benchmark.
+SOLUTION_EXEC_TIMEOUT_SEC = 180
+
+
+def _hydrate_predictions(result, work_dir, output_dir):
+    """If the agent didn't already populate y_true / predictions in the
+    result dict, look for predictions.csv in work_dir or output_dir. If
+    absent, attempt to execute solution.py once and look again.
+
+    This is what lets D1 score LLM agents that emit solution.py but don't
+    run it themselves (claude_api_raw, autogen, etc.). The task prompts
+    require predictions.csv with columns y_true / y_pred / y_prob.
+    """
+    if result.get("predictions") is not None and result.get("y_true") is not None:
+        return  # autogluon / pycaret path — already populated
+
+    work_dir, output_dir = Path(work_dir), Path(output_dir)
+    pred_candidates = [work_dir / "predictions.csv", output_dir / "predictions.csv"]
+    pred_csv = next((p for p in pred_candidates if p.exists()), None)
+
+    if pred_csv is None:
+        sol_candidates = [output_dir / "solution.py", work_dir / "solution.py"]
+        solution_py = next((p for p in sol_candidates if p.exists()), None)
+        if solution_py is None:
+            return
+
+        log(f"[task_runner] post-executing {solution_py.name} to extract predictions")
+        try:
+            subprocess.run(
+                [sys.executable, str(solution_py)],
+                cwd=str(work_dir),
+                capture_output=True,
+                text=True,
+                timeout=SOLUTION_EXEC_TIMEOUT_SEC,
+            )
+        except subprocess.TimeoutExpired:
+            log(f"[task_runner] solution.py exceeded {SOLUTION_EXEC_TIMEOUT_SEC}s, skipping prediction hydration")
+            return
+        except Exception as e:
+            log(f"[task_runner] solution.py post-exec failed: {e}")
+            return
+
+        pred_csv = next((p for p in pred_candidates if p.exists()), None)
+        if pred_csv is None:
+            return
+
+    try:
+        import pandas as pd
+        df = pd.read_csv(pred_csv)
+    except Exception as e:
+        log(f"[task_runner] failed to read {pred_csv}: {e}")
+        return
+
+    if "y_pred" in df.columns:
+        result["predictions"] = df["y_pred"].tolist()
+    if "y_true" in df.columns:
+        result["y_true"] = df["y_true"].tolist()
+    if "y_prob" in df.columns:
+        result["y_prob"] = df["y_prob"].tolist()
 
 
 def load_agent_runner(agent_id):
@@ -120,11 +184,18 @@ def run_single(agent_id, task_id, run_id=1):
     tracker = None
     try:
         from codecarbon import EmissionsTracker
+        # `force_mode_cpu_load=True` skips the Apple-Silicon `powermetrics` path
+        # (which requires sudo) and falls back to psutil-based CPU-load
+        # estimation. `force_cpu_power=40.0` is a typical M-series sustained TDP;
+        # numbers are approximate but consistent across runs, which is what
+        # matters for comparative D5 carbon scoring.
         tracker = EmissionsTracker(
             measure_power_secs=2,
             save_to_file=False,
             log_level="error",
             tracking_mode="process",
+            force_mode_cpu_load=True,
+            force_cpu_power=40.0,
         )
         tracker.start()
     except Exception as e:
@@ -155,6 +226,8 @@ def run_single(agent_id, task_id, run_id=1):
     result.setdefault("run_id", run_id)
     result.setdefault("wall_clock_sec", t.elapsed)
     result["carbon_kg_measured"] = measured_kg
+
+    _hydrate_predictions(result, work_dir, out_dir)
 
     save_json(result, out_dir / "result.json")
 

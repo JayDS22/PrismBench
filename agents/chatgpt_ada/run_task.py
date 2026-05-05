@@ -34,6 +34,26 @@ def _extract_executed_code(resp):
     return "\n\n".join(chunks) if chunks else None
 
 
+def _localize_container_paths(code):
+    """Rewrite OpenAI code-interpreter container paths to bare filenames.
+
+    Two patterns occur in ADA-generated code:
+      - Inputs:  /mnt/data/file-<id>-<name>.<ext>  (uploaded files)
+      - Outputs: /mnt/data/<name>.<ext>            (files the model writes)
+
+    Both don't exist when task_runner post-executes solution.py locally.
+    Stripping the directory prefix (and any file-<id>- token) leaves a bare
+    filename relative to work_dir, which is the agent's CWD during post-exec.
+    """
+    if not code:
+        return code
+    return re.sub(
+        r"/mnt/data/(?:file-[A-Za-z0-9]+-)?([^'\"\s]+)",
+        r"\1",
+        code,
+    )
+
+
 def run(prompt, task_config, work_dir, output_dir):
     import openai
 
@@ -67,8 +87,16 @@ def run(prompt, task_config, work_dir, output_dir):
         file_hint = ""
         if data_files:
             names = ", ".join(os.path.basename(p) for p in data_files)
-            file_hint = (f"\n\nData files are mounted in the code-interpreter "
-                         f"container at /mnt/data/: {names}")
+            file_hint = (
+                f"\n\nData files are mounted in the code-interpreter "
+                f"container at /mnt/data/: {names}.\n\n"
+                "IMPORTANT: Complete the entire task in this single response — "
+                "load data, train models, evaluate, save all required output "
+                "files (predictions.csv, metrics.json, etc.), and finally "
+                "return the full self-contained solution as a ```python``` "
+                "block. Do not stop after exploration; continue executing "
+                "until every output the task asks for has been produced."
+            )
 
         log(f"[chatgpt_ada] {task_id} | files={len(uploaded_file_ids)}")
 
@@ -78,16 +106,25 @@ def run(prompt, task_config, work_dir, output_dir):
             instructions=(
                 "You are a data science assistant with access to a Python code "
                 "interpreter and the user's data files. Write complete Python "
-                "code that solves the task and execute it in the interpreter "
-                "to verify it works. Put the final solution in a ```python``` "
-                "code block as the LAST thing in your reply."
+                "code that solves the task end-to-end (explore, train, evaluate, "
+                "save outputs), execute each step in the interpreter to verify "
+                "it works, and produce all artifacts the task asks for "
+                "(predictions.csv, metrics.json, etc.). Put the final "
+                "self-contained solution in a ```python``` code block as the "
+                "LAST thing in your reply."
             ),
             input=prompt + file_hint,
+            max_output_tokens=8192,
+            max_tool_calls=20,
         )
 
         elapsed = time.perf_counter() - start
         full_text = resp.output_text or ""
-        code = _extract_executed_code(resp) or _extract_python_blocks(full_text)
+        # Prefer the model's final markdown ```python``` block (the
+        # self-contained solution per the system instructions); fall back
+        # to concatenated code_interpreter_call source if absent.
+        code = _extract_python_blocks(full_text) or _extract_executed_code(resp)
+        code = _localize_container_paths(code)
 
         if code:
             with open(os.path.join(output_dir, "solution.py"), "w") as f:
