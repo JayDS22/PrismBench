@@ -20,10 +20,15 @@ def run(prompt, task_config, work_dir, output_dir):
     data_files = [f for f in os.listdir(work_dir) if f.endswith((".csv", ".parquet"))] if os.path.exists(work_dir) else []
     full_prompt = f"{prompt}\n\nData files in {work_dir}: {', '.join(data_files)}"
 
+    max_steps = task_config.get("max_steps", 6)
+
     start = time.perf_counter()
     try:
         model = OpenAIServerModel(model_id="gpt-4o", api_key=api_key)
-        agent = CodeAgent(tools=[], model=model, additional_authorized_imports=["pandas", "numpy", "sklearn", "matplotlib", "seaborn", "shap"])
+        agent = CodeAgent(
+            tools=[], model=model, max_steps=max_steps,
+            additional_authorized_imports=["pandas", "numpy", "sklearn", "matplotlib", "seaborn", "shap"],
+        )
         result_text = agent.run(full_prompt)
         elapsed = time.perf_counter() - start
 
