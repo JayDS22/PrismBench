@@ -24,3 +24,5 @@ pyyaml
 python-dotenv
 pyarrow
 requests
+codecarbon                # D5 carbon footprint measurement for local agents
+pylint                    # D2 code quality scoring (subprocess call from evaluator.py)

@@ -50,6 +50,8 @@ def flatten_scorecard(sc):
         "D4_time_sec":  d4.get("wall_clock_sec"),
         "D5_cost_usd":  d5.get("api_cost_usd"),
         "D5_tokens":    d5.get("tokens_total"),
+        "D5_carbon_kg": d5.get("carbon_kg"),
+        "D5_carbon_source": d5.get("carbon_source"),
         "D6_cv":        d6.get("cv"),
         "D6_std":       d6.get("std"),
     }

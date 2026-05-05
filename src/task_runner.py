@@ -113,6 +113,24 @@ def run_single(agent_id, task_id, run_id=1):
 
     log(f"[task_runner] {agent_id} × {task_id} run {run_id}")
 
+    # CodeCarbon: measure local-machine energy during the agent run. Cloud
+    # agents that call remote APIs will register tiny numbers here (only
+    # the orchestration overhead) — that's fine; cost_tracker uses the
+    # token-based estimate for cloud-side compute.
+    tracker = None
+    try:
+        from codecarbon import EmissionsTracker
+        tracker = EmissionsTracker(
+            measure_power_secs=2,
+            save_to_file=False,
+            log_level="error",
+            tracking_mode="process",
+        )
+        tracker.start()
+    except Exception as e:
+        log(f"[task_runner] CodeCarbon unavailable: {e}")
+        tracker = None
+
     with Timer() as t:
         try:
             result = agent_run(
@@ -125,10 +143,18 @@ def run_single(agent_id, task_id, run_id=1):
             log(f"ERROR: {agent_id} raised an unhandled exception: {e}")
             result = make_result(agent_id, task_id, run_id, error=str(e))
 
+    measured_kg = None
+    if tracker is not None:
+        try:
+            measured_kg = tracker.stop()
+        except Exception as e:
+            log(f"[task_runner] CodeCarbon stop failed: {e}")
+
     result.setdefault("agent", agent_id)
     result.setdefault("task_id", task_id)
     result.setdefault("run_id", run_id)
     result.setdefault("wall_clock_sec", t.elapsed)
+    result["carbon_kg_measured"] = measured_kg
 
     save_json(result, out_dir / "result.json")
 

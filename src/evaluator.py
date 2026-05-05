@@ -16,7 +16,7 @@ import tempfile
 import numpy as np
 
 from src.utils import log, save_json
-from src.cost_tracker import calculate_cost
+from src.cost_tracker import calculate_cost, calculate_carbon_kg
 
 
 # =============================================================================
@@ -116,13 +116,13 @@ def score_code_quality(code_string):
         pylint_score = 5.0
         n_errors, n_warnings = -1, -1
     except FileNotFoundError:
-        log.warning("pylint not installed. Skipping code quality scoring.")
+        log("WARNING: pylint not installed. Skipping code quality scoring.")
         pylint_score = None
         n_errors, n_warnings = -1, -1
     except Exception as e:
         pylint_score = 0.0
         n_errors, n_warnings = -1, -1
-        log.warning(f"pylint error: {e}")
+        log(f"WARNING: pylint error: {e}")
     finally:
         try:
             os.unlink(tmp_path)
@@ -183,14 +183,25 @@ def score_speed(wall_clock_sec):
 # D5: Cost
 # =============================================================================
 
-def score_cost(agent_id, input_tokens=0, output_tokens=0):
-    """D5: API cost in USD."""
+def score_cost(agent_id, input_tokens=0, output_tokens=0, carbon_kg_measured=None):
+    """D5: API cost in USD + CO2 footprint in kg.
+
+    Carbon source depends on agent's `local_or_cloud` field:
+      - local: measured via CodeCarbon during the run
+      - cloud: estimated from tokens (literature-based)
+      - both:  measured local + cloud estimate
+    """
     cost = calculate_cost(agent_id, input_tokens, output_tokens)
+    carbon_kg, carbon_source = calculate_carbon_kg(
+        agent_id, input_tokens, output_tokens, measured_kg=carbon_kg_measured,
+    )
     return {
         "api_cost_usd": cost,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "tokens_total": input_tokens + output_tokens,
+        "carbon_kg": carbon_kg,
+        "carbon_source": carbon_source,
     }
 
 
@@ -260,6 +271,7 @@ def evaluate_result(result, task_config, all_run_scores=None):
             agent_id=agent_id,
             input_tokens=result.get("input_tokens", 0),
             output_tokens=result.get("output_tokens", 0),
+            carbon_kg_measured=result.get("carbon_kg_measured"),
         ),
         "D6_robustness": score_robustness(all_run_scores) if all_run_scores else None,
     }
