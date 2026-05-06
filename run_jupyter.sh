@@ -25,6 +25,15 @@ get_docker_vars_script ${BASH_SOURCE[0]}
 source $DOCKER_NAME
 print_docker_vars
 
+# Defensive install: jupyterlab + ipykernel are declared in requirements.in
+# but older Docker images may predate that change. Install on the fly into
+# the project venv so the grader doesn't need a rebuild to launch Jupyter.
+PYTHON_BIN="${PYTHON_BIN:-/app/.venv/bin/python}"
+if ! "$PYTHON_BIN" -c "import jupyterlab" 2>/dev/null; then
+    echo "[run_jupyter] jupyterlab missing, installing into project venv..."
+    "$PYTHON_BIN" -m pip install --quiet jupyterlab ipykernel
+fi
+
 # Configure vim keybindings and notifications.
 configure_jupyter_vim_keybindings
 configure_jupyter_notifications

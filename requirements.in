@@ -27,3 +27,7 @@ pyarrow
 requests
 codecarbon                # D5 carbon footprint measurement for local agents
 pylint                    # D2 code quality scoring (subprocess call from evaluator.py)
+jupyterlab                # interactive notebook UI for prismbench.{API,example}.ipynb
+ipykernel                 # kernel registration for the notebooks
+nbclient                  # programmatic notebook execution (used by tools/_docker_smoke.py)
+pytest                    # unit + integration test runner (tests/)
