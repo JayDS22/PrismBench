@@ -161,7 +161,7 @@ def print_agent_rankings(summary):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DS-RouteBench Scorecard")
+    parser = argparse.ArgumentParser(description="PrismBench Scorecard")
     parser.add_argument("--csv", type=str, help="Output CSV path")
     args = parser.parse_args()
     summary = build_scorecard(args.csv)

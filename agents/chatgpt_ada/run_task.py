@@ -1,5 +1,5 @@
 """
-DS-RouteBench Agent: ChatGPT ADA (Advanced Data Analysis)
+PrismBench Agent: ChatGPT ADA (Advanced Data Analysis)
 
 Real ADA via the OpenAI Responses API with the `code_interpreter` tool —
 the model gets a sandboxed Python container with the user's data files

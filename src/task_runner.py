@@ -278,7 +278,7 @@ def run_all(agent_ids, task_ids, n_runs=3):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DS-RouteBench Task Runner")
+    parser = argparse.ArgumentParser(description="PrismBench Task Runner")
     parser.add_argument("--agent", required=True, help="Agent ID or 'all'")
     parser.add_argument("--task",  required=True, help="Task ID or 'all'")
     parser.add_argument("--runs",  type=int, default=1, help="Number of runs per (agent, task)")

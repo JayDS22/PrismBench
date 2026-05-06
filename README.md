@@ -1,6 +1,6 @@
 # Comparison of Data Science Agents
 
-## DS-RouteBench: Preference-Aware Routing via Multi-Dimensional Benchmarking
+## PrismBench: Preference-Aware Routing via Multi-Dimensional Benchmarking
 
 Empirical study benchmarking 8+ data science agents across real-world tasks,
 evaluating them on 6 dimensions (accuracy, code quality, explainability, speed,

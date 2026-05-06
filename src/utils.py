@@ -27,7 +27,7 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 #a plain callable so agents can call log("msg") rather than log.info("msg")
-log = logging.getLogger("ds_routebench").info
+log = logging.getLogger("prismbench").info
 
 
 def load_yaml(filename):

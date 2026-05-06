@@ -257,7 +257,7 @@ def profile_all_datasets(forced_redownload=False):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="DS-RouteBench Data Loader")
+    parser = argparse.ArgumentParser(description="PrismBench Data Loader")
     parser.add_argument("--download-all", action="store_true", help="Download and profile all datasets")
     parser.add_argument("--profile",      action="store_true", help="Profile already-downloaded datasets")
     parser.add_argument("--adversarial",  action="store_true", help="Create adversarial variants")

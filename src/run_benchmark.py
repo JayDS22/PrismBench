@@ -20,7 +20,7 @@ PILOT_TASKS  = ["HD-PRED-01", "TAXI-PRED-01"]
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DS-RouteBench Benchmark Runner")
+    parser = argparse.ArgumentParser(description="PrismBench Benchmark Runner")
     parser.add_argument("--agents", type=str, default="all", help="Comma-separated agent IDs or 'all'")
     parser.add_argument("--tasks",  type=str, default="all", help="Comma-separated task IDs or 'all'")
     parser.add_argument("--runs",   type=int, default=3,     help="Number of runs per (agent, task)")
