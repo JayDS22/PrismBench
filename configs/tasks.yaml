@@ -423,3 +423,130 @@ MULTI-SCALE-01:
     
     Save code as 'solution.py', predictions as 'predictions.csv', metrics as 'metrics.json'.
   notes: "Run with n_rows=5000 and n_rows=50000 to measure scalability."
+
+# =============================================================================
+# PROTOCOL C: STRICT-EXPLICIT PROMPT VARIANTS
+# Used in the multi-protocol study. Same data, same splits, same scoring as
+# Protocol A; prompts are rewritten to be maximally explicit about column
+# types, library availability, edge cases, and dtypes for outputs.
+# =============================================================================
+
+HD-PRED-STRICT-01:
+  dataset: heart_disease
+  analytics_level: predictive
+  modality: tabular
+  task_type: classification
+  primary_metric: f1
+  test_size: 0.2
+  split_seed: 42
+  adversarial: false
+  prompt: |
+    File: heart_disease.csv (303 rows) is in the current working directory.
+    Target column: 'target' is integer dtype with values 0 (no disease) or 1
+    (disease). All other columns are numeric features.
+
+    Available libraries: pandas, numpy, sklearn (full), matplotlib, seaborn,
+    shap. You MAY use sklearn.ensemble.RandomForestClassifier,
+    sklearn.linear_model.LogisticRegression,
+    sklearn.svm.SVC, and any sklearn preprocessor or metric.
+
+    Task:
+    1. Load the CSV with pandas.read_csv.
+    2. Handle missing values by row-wise imputation if any exist; otherwise
+       proceed.
+    3. Split with sklearn.model_selection.train_test_split, test_size=0.2,
+       random_state=42, stratify=y.
+    4. Train at least three classification models from the list above.
+    5. For each model, compute on the test set: weighted F1, accuracy, and
+       AUC-ROC for class 1.
+    6. Pick the highest-F1 model as the final predictor.
+
+    Output requirements (exact dtypes and column names):
+    - Save the entire script as 'solution.py'.
+    - Save predictions.csv with columns:
+      * y_true: integer 0 or 1
+      * y_pred: integer 0 or 1
+      * y_prob: float in [0, 1] (probability of class 1)
+    - Save metrics.json with keys: 'best_model_name' (string),
+      'f1_weighted' (float), 'accuracy' (float), 'auc_roc' (float).
+
+TAXI-PRED-STRICT-01:
+  dataset: nyc_taxi
+  analytics_level: predictive
+  modality: tabular
+  task_type: regression
+  primary_metric: rmse
+  test_size: 0.2
+  split_seed: 42
+  adversarial: false
+  prompt: |
+    File: nyc_taxi_sample.parquet is in the current working directory.
+    Target column: 'fare_amount' (float, USD). Features include
+    'trip_distance' (float, miles), 'PULocationID' (integer),
+    'DOLocationID' (integer), 'passenger_count' (integer or NaN), and
+    'tpep_pickup_datetime' (datetime).
+
+    Available libraries: pandas, numpy, sklearn (full). You MAY use
+    sklearn.ensemble.RandomForestRegressor,
+    sklearn.linear_model.LinearRegression or Ridge,
+    and sklearn.preprocessing utilities.
+
+    Task:
+    1. Load the parquet with pandas.read_parquet.
+    2. Engineer features 'pickup_hour' (int 0-23) and 'pickup_dow'
+       (int 0-6) from tpep_pickup_datetime.
+    3. Use as the feature set: trip_distance, PULocationID, DOLocationID,
+       passenger_count, pickup_hour, pickup_dow. Fill any missing values
+       with column median.
+    4. Drop rows where fare_amount is non-positive or trip_distance is
+       non-positive (these are clearly erroneous).
+    5. Split with sklearn.model_selection.train_test_split, test_size=0.2,
+       random_state=42.
+    6. Train at least two regressors. Pick the one with lower test RMSE.
+
+    Output requirements:
+    - Save the entire script as 'solution.py'.
+    - Save predictions.csv with columns:
+      * y_true: float (USD)
+      * y_pred: float (USD)
+    - Save metrics.json with keys: 'best_model_name', 'rmse' (float),
+      'mae' (float), 'r2' (float).
+
+AR-PRED-STRICT-01:
+  dataset: amazon_reviews
+  analytics_level: predictive
+  modality: nlp
+  task_type: classification
+  primary_metric: f1
+  test_size: 0.2
+  split_seed: 42
+  adversarial: false
+  prompt: |
+    File: amazon_reviews.csv (10000 rows) is in the current working directory.
+    Columns: 'text' (string, review body), 'rating' (integer 1 through 5).
+
+    Available libraries: pandas, numpy, sklearn (full). You MAY use
+    sklearn.feature_extraction.text.TfidfVectorizer (with max_features=5000
+    and ngram_range=(1, 2) suggested),
+    sklearn.linear_model.LogisticRegression with max_iter=1000,
+    sklearn.svm.LinearSVC, sklearn.naive_bayes.MultinomialNB.
+
+    Task:
+    1. Load the CSV with pandas.read_csv.
+    2. Define the binary classification target as: y = 1 if rating >= 4,
+       y = 0 if rating <= 2. DROP rows where rating == 3 before splitting.
+    3. Vectorize the 'text' column with TfidfVectorizer.
+    4. Split with sklearn.model_selection.train_test_split, test_size=0.2,
+       random_state=42, stratify=y.
+    5. Train at least two classifiers. Pick the higher-F1 one.
+
+    Output requirements (exact dtypes and column names):
+    - Save the entire script as 'solution.py'.
+    - Save predictions.csv with columns:
+      * y_true: integer 0 or 1
+      * y_pred: integer 0 or 1
+      * y_prob: float in [0, 1] (probability of class 1; if the chosen
+        classifier does not produce probabilities, use decision_function
+        rescaled to [0, 1] via min-max).
+    - Save metrics.json with keys: 'best_model_name', 'f1_weighted' (float),
+      'accuracy' (float).
