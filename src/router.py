@@ -230,16 +230,24 @@ def pareto_optimal(matrix):
 # ============================================================================
 
 def kendall_tau_table(rankings_per_method):
-    """Pairwise Kendall's τ between method rankings."""
+    """Pairwise Kendall tau between method rankings.
+
+    Each entry in `rankings_per_method` is a sorted Series (agents in order
+    by score). We need each agent's position in each method to compare,
+    not the trivially-sorted score ranks. Build a per-method position
+    vector aligned to a common agent ordering before computing tau.
+    """
     from scipy.stats import kendalltau
     methods = list(rankings_per_method.keys())
+    common = sorted(set.intersection(*[set(r.index) for r in rankings_per_method.values()]))
+    positions = {
+        m: [list(rankings_per_method[m].index).index(agent) for agent in common]
+        for m in methods
+    }
     out = pd.DataFrame(index=methods, columns=methods, dtype=float)
     for a in methods:
         for b in methods:
-            tau, _ = kendalltau(
-                rankings_per_method[a].rank().values,
-                rankings_per_method[b].rank().values,
-            )
+            tau, _ = kendalltau(positions[a], positions[b])
             out.loc[a, b] = round(tau, 3)
     return out
 
