@@ -45,8 +45,8 @@ def _hydrate_generated_code(result, work_dir, output_dir):
             try:
                 result["generated_code"] = p.read_text()
                 return
-            except Exception:
-                pass
+            except OSError as e:
+                log(f"[task_runner] could not read {p} for D2 hydration: {e}")
 
 
 def _hydrate_predictions(result, work_dir, output_dir):

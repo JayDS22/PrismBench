@@ -16,6 +16,21 @@ mlruns/
 # Local notes / findings (personal scratch, not part of the artifact)
 notes/
 
+# Writeup drafts (only the final PDF is committed as the deliverable)
+report.md
+report.pdf
+*.draft.md
+*.tex
+*.aux
+*.log
+*.out
+
+# Internal build helpers for the report PDF and the notebooks (the
+# notebook .ipynb files and the report PDF are the deliverables, not
+# the generators that produced them).
+tools/build_report_pdf.py
+tools/build_notebooks.py
+
 # Claude Code IDE state
 .claude/
 
