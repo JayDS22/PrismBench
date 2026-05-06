@@ -6,7 +6,9 @@ Usage:
     python -m src.task_runner --agent claude_api_raw --task HD-PRED-01 --runs 3
     python -m src.task_runner --agent all --task all --runs 3
 """
+import os
 import sys
+import signal
 import argparse
 import importlib
 import shutil
@@ -67,19 +69,43 @@ def _hydrate_predictions(result, work_dir, output_dir):
             return
 
         log(f"[task_runner] post-executing {solution_py.name} to extract predictions")
+        # Launch in a new process group so we can SIGKILL the whole group on
+        # timeout. subprocess.run(timeout=...) only kills the immediate child;
+        # if the child has spawned grandchildren (e.g. multiprocessing) or is
+        # blocked on a syscall that ignores SIGTERM, the timeout silently
+        # leaves the process alive and the benchmark hangs indefinitely.
         try:
-            subprocess.run(
+            proc = subprocess.Popen(
                 [sys.executable, str(solution_py)],
                 cwd=str(work_dir),
-                capture_output=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 text=True,
-                timeout=SOLUTION_EXEC_TIMEOUT_SEC,
+                start_new_session=True,
             )
+        except Exception as e:
+            log(f"[task_runner] solution.py post-exec failed to start: {e}")
+            return
+
+        try:
+            proc.communicate(timeout=SOLUTION_EXEC_TIMEOUT_SEC)
         except subprocess.TimeoutExpired:
-            log(f"[task_runner] solution.py exceeded {SOLUTION_EXEC_TIMEOUT_SEC}s, skipping prediction hydration")
+            log(f"[task_runner] solution.py exceeded {SOLUTION_EXEC_TIMEOUT_SEC}s, killing process group")
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
+            try:
+                proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
             return
         except Exception as e:
-            log(f"[task_runner] solution.py post-exec failed: {e}")
+            log(f"[task_runner] solution.py post-exec error: {e}")
+            try:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+            except (ProcessLookupError, PermissionError):
+                pass
             return
 
         pred_csv = next((p for p in pred_candidates if p.exists()), None)
