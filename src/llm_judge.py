@@ -237,7 +237,11 @@ def judge_all_results(results_dir=None):
         result = load_json(result_path)
         scorecard_path = result_path.parent / "scorecard.json"
         code = result.get("generated_code")
-        task_id = result.get("task_id", "")
+        # Derive task_id from path because result.json historically holds
+        # "?" (wrappers default that way). Path layout is
+        # results/<agent>/<task_id>/run_<n>/result.json.
+        parts = result_path.relative_to(results_dir).parts
+        task_id = parts[1] if len(parts) >= 2 else result.get("task_id", "")
         task_desc = tasks.get(task_id, {}).get("prompt", "")[:500]
 
         if not code or len(code.strip()) <= 20:

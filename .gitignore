@@ -15,3 +15,12 @@ mlruns/
 
 # Local notes / findings (personal scratch, not part of the artifact)
 notes/
+
+# Claude Code IDE state
+.claude/
+
+# Stray artifacts from solution.py post-execution that landed at repo root
+/metrics.json
+/predictions.csv
+/powermetrics_log.txt
+results/

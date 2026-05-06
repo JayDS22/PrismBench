@@ -49,6 +49,14 @@ def flatten_scorecard(sc):
     d5 = sc.get("D5_cost",         {}) or {}
     d6 = sc.get("D6_robustness",   {}) or {}
 
+    # Combined D2/D3: average of the static-analysis score and the
+    # LLM-judge score when both are present. The two often disagree (see
+    # findings J1), so this is a routing convenience, not a truth signal.
+    pl, jl = d2.get("pylint_score"), d2.get("llm_judge_score")
+    d2_combined = (pl + jl) / 2 if (pl is not None and jl is not None) else None
+    a3, j3 = d3.get("auto_score"), d3.get("llm_judge_score")
+    d3_combined = (a3 + j3) / 2 if (a3 is not None and j3 is not None) else None
+
     return {
         "agent":      sc.get("agent"),
         "task_id":    sc.get("task_id"),
@@ -62,7 +70,10 @@ def flatten_scorecard(sc):
         "D1_type":      d1.get("type"),
         "D2_pylint":    d2.get("pylint_score"),
         "D2_llm_judge": d2.get("llm_judge_score"),
+        "D2_combined":  round(d2_combined, 2) if d2_combined is not None else None,
         "D3_auto_score": d3.get("auto_score"),
+        "D3_llm_judge": d3.get("llm_judge_score"),
+        "D3_combined":  round(d3_combined, 2) if d3_combined is not None else None,
         "D3_shap":      d3.get("shap_generated"),
         "D4_time_sec":  d4.get("wall_clock_sec"),
         "D5_cost_usd":  d5.get("api_cost_usd"),
@@ -82,6 +93,20 @@ def build_scorecard(output_path=None):
 
     df = pd.DataFrame([flatten_scorecard(sc) for sc in scorecards])
     df = df.sort_values(["task_id", "agent", "run_id"]).reset_index(drop=True)
+
+    # Backfill D6 robustness (CV and std of D1) per (agent, task) from the
+    # actual run data. The evaluator's score_robustness() needs all_run_scores
+    # passed in, but task_runner.run_single() doesn't pass it — so D6_cv and
+    # D6_std are NaN in scorecard.json files. Computing here from the
+    # detailed dataframe is the cheapest fix and keeps the source of truth
+    # in one place.
+    primary = df["D1_f1"].fillna(df["D1_rmse"])  # F1 for classification, RMSE for regression
+    df["_primary"] = primary
+    grp = df.groupby(["agent", "task_id"])["_primary"]
+    df["D6_std"] = grp.transform("std").round(4)
+    mean = grp.transform("mean")
+    df["D6_cv"] = (df["D6_std"] / mean.abs()).round(4)
+    df = df.drop(columns=["_primary"])
 
     numeric_cols = [c for c in df.columns if c.startswith("D") and pd.api.types.is_numeric_dtype(df[c])]
     summary = df.groupby(["agent", "task_id"])[numeric_cols].mean().round(4).reset_index()
