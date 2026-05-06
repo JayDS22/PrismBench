@@ -13,10 +13,17 @@ from src.cost_tracker import calculate_cost
 
 
 def extract_code_from_response(text):
+    # Strict: complete fenced blocks (response ended with closing ``` ).
     for pattern in [r"```python\s*\n(.*?)```", r"```\s*\n(.*?)```"]:
         matches = re.findall(pattern, text, re.DOTALL)
         if matches:
             return "\n\n".join(matches)
+    # Lenient: response opened with ```python but never closed (likely
+    # truncated by max_tokens). Take everything after the fence so we still
+    # get something to evaluate D2 / post-execute against.
+    m = re.search(r"```python\s*\n(.*)", text, re.DOTALL)
+    if m:
+        return m.group(1).rstrip("` \n")
     return None
 
 
@@ -56,7 +63,10 @@ def run(prompt, task_config, work_dir, output_dir):
         client = anthropic.Anthropic(api_key=api_key)
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=4096,
+            max_tokens=8192,  # bumped from 4096; NLP code generation
+                              # (TfidfVectorizer + classifier + eval) routinely
+                              # exceeds 4K tokens and was getting truncated
+                              # mid-code on AR-ROBU runs
             temperature=0,
             messages=[{"role": "user", "content": full_prompt}],
         )

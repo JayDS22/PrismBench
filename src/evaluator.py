@@ -46,10 +46,21 @@ def score_accuracy(task_type, y_true=None, y_pred=None, y_prob=None, rubric_scor
     y_pred = np.array(y_pred)
 
     if task_type == "classification":
+        try:
+            f1 = round(f1_score(y_true, y_pred, average="weighted", zero_division=0), 4)
+            acc = round(accuracy_score(y_true, y_pred), 4)
+        except ValueError as e:
+            # sklearn rejects mixed string/number label types, etc. The
+            # most common cause is an agent that solved a different
+            # classification problem (e.g. binary sentiment when the prompt
+            # asked for 5-class rating) so y_true and y_pred have
+            # incompatible label spaces. Surface as score-time error rather
+            # than crash the whole evaluator.
+            return {"type": "classification", "error": f"sklearn rejected labels: {e}"}
         result = {
             "type": "classification",
-            "f1_weighted": round(f1_score(y_true, y_pred, average="weighted", zero_division=0), 4),
-            "accuracy": round(accuracy_score(y_true, y_pred), 4),
+            "f1_weighted": f1,
+            "accuracy": acc,
         }
         if y_prob is not None:
             try:
@@ -64,12 +75,15 @@ def score_accuracy(task_type, y_true=None, y_pred=None, y_prob=None, rubric_scor
         return result
 
     elif task_type in ("regression", "forecasting"):
-        return {
-            "type": "regression",
-            "rmse": round(float(np.sqrt(mean_squared_error(y_true, y_pred))), 4),
-            "mae": round(float(mean_absolute_error(y_true, y_pred)), 4),
-            "r2": round(float(r2_score(y_true, y_pred)), 4),
-        }
+        try:
+            return {
+                "type": "regression",
+                "rmse": round(float(np.sqrt(mean_squared_error(y_true, y_pred))), 4),
+                "mae": round(float(mean_absolute_error(y_true, y_pred)), 4),
+                "r2": round(float(r2_score(y_true, y_pred)), 4),
+            }
+        except ValueError as e:
+            return {"type": "regression", "error": f"sklearn rejected values: {e}"}
 
     return {"type": task_type, "error": f"Unknown task_type: {task_type}"}
 

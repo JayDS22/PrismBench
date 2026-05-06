@@ -125,13 +125,14 @@ def run(prompt, task_config, work_dir, output_dir):
         # first tool execution on multi-step tasks. If the agent didn't
         # generate the file outputs the prompt asked for, chain a follow-up
         # response with previous_response_id to push it to continue. Up to
-        # 2 continuations (3 calls total) before giving up.
+        # 4 continuations (5 calls total) before giving up; NLP tasks
+        # frequently need more iterations than tabular ML.
         all_executed = [_extract_executed_code(resp) or ""]
         all_text     = [resp.output_text or ""]
         in_tok_total = getattr(getattr(resp, "usage", None), "input_tokens",  0) or 0
         out_tok_total = getattr(getattr(resp, "usage", None), "output_tokens", 0) or 0
 
-        for attempt in range(2):
+        for attempt in range(4):
             joined_code = "\n".join(all_executed).lower()
             if "predictions.csv" in joined_code or "to_csv" in joined_code:
                 break  # task likely complete

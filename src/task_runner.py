@@ -24,9 +24,12 @@ from src.evaluator import evaluate_result
 
 
 # Wall-clock cap for post-executing an agent's solution.py to recover
-# predictions. Long enough for sklearn fits on the project's datasets,
-# short enough that a runaway script doesn't stall the benchmark.
-SOLUTION_EXEC_TIMEOUT_SEC = 180
+# predictions. Long enough for sklearn fits and NLP tokenization on the
+# project's datasets, short enough that a runaway script doesn't stall
+# the benchmark. The patched up-to-600s value covers AR-PRED-01 / AR-ROBU-01
+# style NLP tasks where TfidfVectorizer + classifier fits on 10K reviews
+# can push past 3 minutes.
+SOLUTION_EXEC_TIMEOUT_SEC = 600
 
 
 def _hydrate_generated_code(result, work_dir, output_dir):
@@ -119,12 +122,60 @@ def _hydrate_predictions(result, work_dir, output_dir):
         log(f"[task_runner] failed to read {pred_csv}: {e}")
         return
 
-    if "y_pred" in df.columns:
-        result["predictions"] = df["y_pred"].tolist()
-    if "y_true" in df.columns:
-        result["y_true"] = df["y_true"].tolist()
-    if "y_prob" in df.columns:
-        result["y_prob"] = df["y_prob"].tolist()
+    # Agents are SUPPOSED to use y_true / y_pred / y_prob per the task
+    # prompt, but some emit alternative column names. We strict-match first;
+    # if that fails, we alias-match by substring with a dtype preference so
+    # an alias-matched y_true has the same dtype as the alias-matched y_pred
+    # (otherwise sklearn would raise on mixed string-and-number labels).
+    def _candidates(cols, exact, aliases):
+        out = []
+        if exact in cols:
+            out.append(exact)
+        for c in cols:
+            cl = c.lower()
+            if any(a in cl for a in aliases) and c not in out:
+                out.append(c)
+        return out
+
+    pred_cands = _candidates(df.columns, "y_pred",
+                             ["y_pred", "predicted_label", "predicted_sentiment",
+                              "predicted", "prediction", "pred"])
+    true_cands = _candidates(df.columns, "y_true",
+                             ["y_true", "ground_truth", "actual_label",
+                              "actual", "true", "original_sentiment", "sentiment",
+                              "label"])
+    prob_cands = _candidates(df.columns, "y_prob",
+                             ["y_prob", "probability", "confidence", "prob", "score"])
+
+    pred_col = pred_cands[0] if pred_cands else None
+    # For y_true, prefer a candidate whose dtype matches y_pred AND is not
+    # the same column as y_pred. This catches the case where predictions.csv
+    # contains both a numeric column (e.g. original_label = 1..5 stars) and
+    # a categorical column (e.g. original_sentiment = "positive"/"negative")
+    # and the agent's predictions are categorical: we want the categorical
+    # ground truth, not the same column we already picked as y_pred.
+    true_cands_distinct = [c for c in true_cands if c != pred_col]
+    true_col = None
+    if pred_col and true_cands_distinct:
+        pred_dtype = df[pred_col].dtype
+        for c in true_cands_distinct:
+            if df[c].dtype == pred_dtype:
+                true_col = c
+                break
+    if true_col is None and true_cands_distinct:
+        true_col = true_cands_distinct[0]
+    prob_col = prob_cands[0] if prob_cands else None
+
+    for std_name, found in (("y_pred", pred_col), ("y_true", true_col), ("y_prob", prob_col)):
+        if found and found != std_name:
+            log(f"[task_runner] hydration: matched {std_name!r} to non-spec column {found!r} (agent did not follow output schema)")
+
+    if pred_col:
+        result["predictions"] = df[pred_col].tolist()
+    if true_col:
+        result["y_true"] = df[true_col].tolist()
+    if prob_col:
+        result["y_prob"] = df[prob_col].tolist()
 
 
 def load_agent_runner(agent_id):
