@@ -22,7 +22,11 @@ import pandas as pd
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from src.utils import RESULTS_DIR, log
+from src.utils import RESULTS_DIR, PROJECT_ROOT, log
+
+# Plots intended for the writeup live in `figures/` (tracked). Per-run
+# scorecards stay under `results/` (gitignored).
+FIGURES_DIR = PROJECT_ROOT / "figures"
 
 
 # ============================================================================
@@ -253,6 +257,94 @@ def kendall_tau_table(rankings_per_method):
 
 
 # ============================================================================
+# Sensitivity sweep
+# ============================================================================
+
+def _uniform_complement_weights(target_dim, target_value):
+    """Build a weight dict with `target_value` on `target_dim` and the
+    remainder distributed uniformly over the other DIM_NAMES."""
+    others = [n for n in DIM_NAMES if n != target_dim]
+    rest = (1.0 - target_value) / len(others)
+    w = {n: rest for n in others}
+    w[target_dim] = target_value
+    return w
+
+
+def sensitivity_sweep(target_dim, summary_df=None, n_steps=21,
+                      method="wsm", strict=False):
+    """Vary the weight on `target_dim` from 0 to 1 in `n_steps` increments
+    (default 0.05 step). At each value, distribute (1 - target_value)
+    uniformly across the other six dimensions and record the resulting
+    score per agent under `method`.
+
+    Returns a dataframe with columns: target_weight, agent, score, rank.
+    Sorted by (target_weight, rank).
+    """
+    if target_dim not in DIM_NAMES:
+        raise ValueError(f"Unknown dimension: {target_dim}. Available: {DIM_NAMES}")
+    if summary_df is None:
+        summary_df = load_summary()
+
+    method_funcs = {"wsm": wsm, "topsis": topsis, "promethee": promethee}
+    if method not in method_funcs:
+        raise ValueError(f"Unknown method: {method}")
+
+    rows = []
+    grid = np.linspace(0.0, 1.0, n_steps)
+    for w_target in grid:
+        weights = _uniform_complement_weights(target_dim, float(w_target))
+        out = recommend(weights, summary_df, methods=(method,), strict=strict)
+        ranking = out["rankings"][method]
+        for rank, (agent, score) in enumerate(ranking.items(), 1):
+            rows.append({
+                "target_weight": round(float(w_target), 4),
+                "agent": agent,
+                "score": float(score),
+                "rank": rank,
+            })
+
+    return pd.DataFrame(rows)
+
+
+def find_top1_breakpoints(sweep_df):
+    """Walk the sweep in order of target_weight and emit the weight values
+    where the top-1 agent changes.
+
+    Returns a list of (target_weight, prev_agent, new_agent) tuples.
+    """
+    top1 = (sweep_df[sweep_df["rank"] == 1]
+            .sort_values("target_weight")
+            .reset_index(drop=True))
+    breakpoints = []
+    prev_agent = None
+    for _, row in top1.iterrows():
+        if prev_agent is not None and row["agent"] != prev_agent:
+            breakpoints.append((row["target_weight"], prev_agent, row["agent"]))
+        prev_agent = row["agent"]
+    return breakpoints
+
+
+def plot_sensitivity(sweep_df, target_dim, output_path, method="wsm"):
+    """Save a PNG line plot of agent scores across the swept target weight."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    pivot = sweep_df.pivot(index="target_weight", columns="agent", values="score")
+    fig, ax = plt.subplots(figsize=(10, 6))
+    for agent in pivot.columns:
+        ax.plot(pivot.index, pivot[agent], marker="o", markersize=3, label=agent)
+    ax.set_xlabel(f"Weight on {target_dim} (others uniform)")
+    ax.set_ylabel(f"{method.upper()} score")
+    ax.set_title(f"Sensitivity to {target_dim} weight ({method.upper()})")
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=120)
+    plt.close(fig)
+
+
+# ============================================================================
 # CLI
 # ============================================================================
 
@@ -308,7 +400,7 @@ def recommend(weights, summary_df=None, methods=("wsm", "topsis", "promethee"),
 
 def _print_report(out, weights, methods):
     print("\n" + "=" * 72)
-    print("DS-RouteBench: preference-aware routing")
+    print("PrismBench: preference-aware routing")
     print("=" * 72)
     print("\nWeights:")
     for n in DIM_NAMES:
@@ -344,7 +436,7 @@ def _print_report(out, weights, methods):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="DS-RouteBench MCDM router")
+    parser = argparse.ArgumentParser(description="PrismBench MCDM router")
     parser.add_argument("--preset", choices=list(PRESETS.keys()),
                         help="Use a preset weight profile")
     parser.add_argument("--weights", type=str,
@@ -357,6 +449,13 @@ def main():
                         help="Override path to master_scorecard_summary.csv")
     parser.add_argument("--strict", action="store_true",
                         help="Exclude agents with partial task coverage from ranking")
+    parser.add_argument("--sweep", type=str, default=None,
+                        choices=DIM_NAMES + ["all"],
+                        help="Sensitivity sweep on the named dimension (or 'all' for every dimension)")
+    parser.add_argument("--sweep-steps", type=int, default=21,
+                        help="Number of weight values from 0 to 1 in the sweep (default 21 = 0.05 step)")
+    parser.add_argument("--plot", action="store_true",
+                        help="Save a PNG plot of the sweep to results/sensitivity_<dim>_<method>.png")
     args = parser.parse_args()
 
     if args.weights:
@@ -368,6 +467,35 @@ def main():
 
     methods = ("wsm", "topsis", "promethee") if not args.method else (args.method,)
     summary = load_summary(args.csv) if args.csv else load_summary()
+
+    if args.sweep is not None:
+        method = args.method or "wsm"
+        targets = DIM_NAMES if args.sweep == "all" else [args.sweep]
+        for target in targets:
+            print("\n" + "=" * 72)
+            print(f"Sensitivity sweep on {target} (method = {method.upper()}, "
+                  f"{args.sweep_steps} steps, strict = {args.strict})")
+            print("=" * 72)
+            sweep_df = sensitivity_sweep(target, summary,
+                                         n_steps=args.sweep_steps,
+                                         method=method, strict=args.strict)
+            top1 = sweep_df[sweep_df["rank"] == 1][["target_weight", "agent", "score"]]
+            print(top1.to_string(index=False))
+            bps = find_top1_breakpoints(sweep_df)
+            if bps:
+                print("\nTop-1 breakpoints (weight value where the winner changes):")
+                for w, prev, new in bps:
+                    print(f"  at {target} = {w:.3f}: {prev}  ->  {new}")
+            else:
+                print("\nNo top-1 changes across the sweep (one agent dominates throughout).")
+
+            if args.plot:
+                FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+                out_path = FIGURES_DIR / f"sensitivity_{target}_{method}.png"
+                plot_sensitivity(sweep_df, target, out_path, method=method)
+                print(f"\nPlot saved: {out_path}")
+        return
+
     out = recommend(weights, summary, methods=methods, strict=args.strict)
     _print_report(out, weights, methods)
 
