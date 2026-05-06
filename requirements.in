@@ -15,6 +15,7 @@ shap<0.47               # numpy-1.x ABI; required by smolagents authorized_impor
 pandasai
 pandasai-openai         # pandasai v3 unbundled LLMs; this routes through OPENAI_API_KEY
 pycaret
+autogluon               # AutoML baseline; used by agents/autogluon
 numpy<2                 # pycaret 3.3.2 binary ABI requires numpy 1.x
 scipy<=1.11.4           # pycaret 3.3.2 imports scipy.interp (removed in 1.12+)
 pandas<2.3              # autogluon-features cap; also keeps pycaret happy

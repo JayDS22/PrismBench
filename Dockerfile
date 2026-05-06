@@ -31,11 +31,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 ENV PATH="/root/.local/bin:$PATH"
 
-# Install project specific packages using uv.
-COPY pyproject.toml uv.lock /app/
+# Install project specific packages.
+# This project uses pip-compile-generated requirements.txt (not pyproject.toml
+# / uv.lock) as its canonical install spec. We invoke uv in pip mode against
+# an explicit venv so packages land in the right path.
+COPY requirements.txt /app/
 WORKDIR /app
-RUN uv sync
+RUN uv venv --python 3.11 /app/.venv
+ENV VIRTUAL_ENV=/app/.venv
 ENV PATH="/app/.venv/bin:$PATH"
+# Use --python flag so uv pip installs into the venv we just created
+# regardless of any default uv pip resolution behaviour.
+RUN uv pip install --python /app/.venv/bin/python -r /app/requirements.txt
 
 # Copy project files.
 COPY . /app
