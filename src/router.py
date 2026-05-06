@@ -324,6 +324,109 @@ def find_top1_breakpoints(sweep_df):
     return breakpoints
 
 
+# ============================================================================
+# Pareto 2D projections
+# ============================================================================
+
+# Canonical projection set for the writeup figure suite. Each tuple:
+# (x_label, x_col, x_lower_better, y_label, y_col, y_lower_better, title, slug)
+CANONICAL_PROJECTIONS = [
+    ("D5 cost (USD)",        "D5_cost_usd",  True,
+     "D1 normalized accuracy", "primary",     False,
+     "Accuracy vs Cost",      "accuracy_vs_cost"),
+    ("D5 carbon (kg CO2)",   "D5_carbon_kg", True,
+     "D1 normalized accuracy", "primary",     False,
+     "Accuracy vs Carbon",    "accuracy_vs_carbon"),
+    ("D5 cost (USD)",        "D5_cost_usd",  True,
+     "D2 combined code quality", "D2_combined", False,
+     "Code Quality vs Cost",  "code_quality_vs_cost"),
+    ("D5 cost (USD)",        "D5_cost_usd",  True,
+     "D3 combined explainability", "D3_combined", False,
+     "Explainability vs Cost", "explainability_vs_cost"),
+    ("D5 carbon (kg CO2)",   "D5_carbon_kg", True,
+     "D5 cost (USD)",         "D5_cost_usd", True,
+     "Cost vs Carbon (both axes lower-is-better)", "cost_vs_carbon"),
+    ("D4 wall-clock (s)",    "D4_time_sec",  True,
+     "D1 normalized accuracy", "primary",     False,
+     "Accuracy vs Speed",     "accuracy_vs_speed"),
+]
+
+
+def pareto_2d(matrix, x_col, y_col, x_lower_better, y_lower_better):
+    """Boolean Series: True if the row is Pareto-optimal in (x_col, y_col).
+
+    Rows with NaN on either axis are treated as dominated.
+    """
+    is_opt = pd.Series(True, index=matrix.index)
+    x = matrix[x_col]
+    y = matrix[y_col]
+    for i in matrix.index:
+        if pd.isna(x[i]) or pd.isna(y[i]):
+            is_opt[i] = False
+            continue
+        for j in matrix.index:
+            if i == j: continue
+            if pd.isna(x[j]) or pd.isna(y[j]): continue
+            x_better = (x[j] <= x[i]) if x_lower_better else (x[j] >= x[i])
+            y_better = (y[j] <= y[i]) if y_lower_better else (y[j] >= y[i])
+            x_strict = (x[j] <  x[i]) if x_lower_better else (x[j] >  x[i])
+            y_strict = (y[j] <  y[i]) if y_lower_better else (y[j] >  y[i])
+            if x_better and y_better and (x_strict or y_strict):
+                is_opt[i] = False
+                break
+    return is_opt
+
+
+def plot_pareto_2d(matrix, x_col, y_col, x_label, y_label, title, output_path,
+                   x_lower_better=True, y_lower_better=False,
+                   x_log=False, y_log=False):
+    """Save a 2D Pareto scatter with the frontier line connecting non-dominated points."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    df = matrix[[x_col, y_col]].dropna()
+    is_opt = pareto_2d(df, x_col, y_col, x_lower_better, y_lower_better)
+
+    fig, ax = plt.subplots(figsize=(9, 6))
+
+    # Dominated points
+    sub_dom = df[~is_opt]
+    if len(sub_dom):
+        ax.scatter(sub_dom[x_col], sub_dom[y_col],
+                   c="lightgray", s=80, edgecolors="gray", label="Dominated")
+        for agent, row in sub_dom.iterrows():
+            ax.annotate(agent, (row[x_col], row[y_col]), fontsize=8, alpha=0.7,
+                        xytext=(5, 5), textcoords="offset points")
+
+    # Pareto-optimal points
+    sub_opt = df[is_opt]
+    ax.scatter(sub_opt[x_col], sub_opt[y_col],
+               c="C1", s=140, edgecolors="black", linewidths=1.2,
+               label="Pareto-optimal", zorder=5)
+    for agent, row in sub_opt.iterrows():
+        ax.annotate(agent, (row[x_col], row[y_col]), fontsize=10, weight="bold",
+                    xytext=(6, 6), textcoords="offset points", zorder=6)
+
+    # Frontier line
+    if len(sub_opt) > 1:
+        sorted_opt = sub_opt.sort_values(x_col, ascending=x_lower_better)
+        ax.plot(sorted_opt[x_col], sorted_opt[y_col],
+                "k--", alpha=0.45, linewidth=1.2, zorder=4)
+
+    if x_log: ax.set_xscale("log")
+    if y_log: ax.set_yscale("log")
+
+    ax.set_xlabel(x_label + ("  (lower = better)" if x_lower_better else "  (higher = better)"))
+    ax.set_ylabel(y_label + ("  (lower = better)" if y_lower_better else "  (higher = better)"))
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    ax.legend(loc="best")
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=120)
+    plt.close(fig)
+
+
 def plot_sensitivity(sweep_df, target_dim, output_path, method="wsm"):
     """Save a PNG line plot of agent scores across the swept target weight."""
     import matplotlib
@@ -455,7 +558,9 @@ def main():
     parser.add_argument("--sweep-steps", type=int, default=21,
                         help="Number of weight values from 0 to 1 in the sweep (default 21 = 0.05 step)")
     parser.add_argument("--plot", action="store_true",
-                        help="Save a PNG plot of the sweep to results/sensitivity_<dim>_<method>.png")
+                        help="Save a PNG plot of the sweep to figures/sensitivity_<dim>_<method>.png")
+    parser.add_argument("--pareto-suite", action="store_true",
+                        help="Generate the canonical 2D Pareto projections to figures/pareto_<slug>.png")
     args = parser.parse_args()
 
     if args.weights:
@@ -467,6 +572,24 @@ def main():
 
     methods = ("wsm", "topsis", "promethee") if not args.method else (args.method,)
     summary = load_summary(args.csv) if args.csv else load_summary()
+
+    if args.pareto_suite:
+        FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+        matrix = build_routing_matrix(summary)
+        print("\n" + "=" * 72)
+        print(f"Pareto 2D projection suite ({len(CANONICAL_PROJECTIONS)} figures)")
+        print("=" * 72)
+        for x_label, x_col, x_lib, y_label, y_col, y_lib, title, slug in CANONICAL_PROJECTIONS:
+            sub = matrix[[x_col, y_col]].dropna()
+            is_opt = pareto_2d(sub, x_col, y_col, x_lib, y_lib)
+            opt_agents = list(sub[is_opt].index)
+            out_path = FIGURES_DIR / f"pareto_{slug}.png"
+            plot_pareto_2d(matrix, x_col, y_col, x_label, y_label, title, out_path,
+                           x_lower_better=x_lib, y_lower_better=y_lib)
+            print(f"  {title}")
+            print(f"    Pareto-optimal: {opt_agents}")
+            print(f"    Saved: {out_path}")
+        return
 
     if args.sweep is not None:
         method = args.method or "wsm"
