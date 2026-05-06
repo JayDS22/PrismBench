@@ -14,10 +14,27 @@ from src.utils import RESULTS_DIR, load_json, log
 
 
 def collect_scorecards():
+    """Load every scorecard.json under results/. The path layout is
+    `results/<agent>/<task_id>/run_<run_id>/scorecard.json`, so we override
+    those three identity fields from the path — the JSON contents have
+    historically held a bare "?" because wrappers couldn't see the canonical
+    task_id passed by the runner.
+    """
     scorecards = []
     for scorecard_path in RESULTS_DIR.rglob("scorecard.json"):
         try:
-            scorecards.append(load_json(scorecard_path))
+            sc = load_json(scorecard_path)
+            parts = scorecard_path.relative_to(RESULTS_DIR).parts
+            if len(parts) >= 3:
+                sc["agent"]   = parts[0]
+                sc["task_id"] = parts[1]
+                run_dir = parts[2]
+                if run_dir.startswith("run_"):
+                    try:
+                        sc["run_id"] = int(run_dir.split("_", 1)[1])
+                    except ValueError:
+                        pass
+            scorecards.append(sc)
         except Exception as e:
             log(f"WARNING: failed to load {scorecard_path}: {e}")
     return scorecards

@@ -238,9 +238,12 @@ def run_single(agent_id, task_id, run_id=1):
         except Exception as e:
             log(f"[task_runner] CodeCarbon stop failed: {e}")
 
-    result.setdefault("agent", agent_id)
-    result.setdefault("task_id", task_id)
-    result.setdefault("run_id", run_id)
+    # Authoritative identity overrides whatever the wrapper put in.
+    # Wrappers default task_id to "?" via make_result(); task_runner is the
+    # only place that knows the canonical task_id from the invocation.
+    result["agent"]    = agent_id
+    result["task_id"]  = task_id
+    result["run_id"]   = run_id
     result.setdefault("wall_clock_sec", t.elapsed)
     result["carbon_kg_measured"] = measured_kg
 
