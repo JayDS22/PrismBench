@@ -1,11 +1,17 @@
 # PrismBench: Comparison of Data Science Agents
 
-Course: DATA 605 Big Data Systems, Spring 2026
-Instructor: Dr. GP Saggese
-Authors: Jay Guwalani (UID 121479709), Anupama Sharma (UID 122241220)
+[![License: MIT](https://img.shields.io/github/license/JayDS22/PrismBench)](LICENSE)
+[![Repo Size](https://img.shields.io/github/repo-size/JayDS22/PrismBench)](https://github.com/JayDS22/PrismBench)
+[![Last Commit](https://img.shields.io/github/last-commit/JayDS22/PrismBench)](https://github.com/JayDS22/PrismBench/commits/main)
+![Python](https://img.shields.io/badge/python-3.11+-blue)
+![Docker](https://img.shields.io/badge/docker-ubuntu%3A24.04-2496ED?logo=docker&logoColor=white)
 
-Project video: https://drive.google.com/file/d/10fAEgpPF0YYt8CbIdVKsMNvK4JpFsqTy/view?usp=sharing
-Project report: [UmdTask403_DATA605_Spring2026_Comparison_of_Data_Science_Agents.pdf](./UmdTask403_DATA605_Spring2026_Comparison_of_Data_Science_Agents.pdf)
+> **Course:** DATA 605 Big Data Systems, Spring 2026 &nbsp;·&nbsp; **Instructor:** Dr. GP Saggese
+> **Authors:** Jay Guwalani (UID 121479709), Anupama Sharma (UID 122241220)
+
+**Quick links:** [Project Video](https://drive.google.com/file/d/10fAEgpPF0YYt8CbIdVKsMNvK4JpFsqTy/view?usp=sharing) &nbsp;·&nbsp; [Final Report (PDF)](./UmdTask403_DATA605_Spring2026_Comparison_of_Data_Science_Agents.pdf) &nbsp;·&nbsp; [API Notebook](./prismbench.API.ipynb) &nbsp;·&nbsp; [Example Notebook](./prismbench.example.ipynb)
+
+![PrismBench Architecture](figures/architecture.png)
 
 ## Overview
 
@@ -250,6 +256,9 @@ Implemented in `src/stats.py` and `src/protocol_analysis.py`:
 
 ## File descriptions
 
+<details>
+<summary><b>Click to expand the full file descriptions</b> (project files, Docker image, Docker template)</summary>
+
 ### Project files
 
 - `configs/agents.yaml`: agent IDs, categories, pricing per million
@@ -328,6 +337,8 @@ course's `class_project/project_template`:
 - `etc_sudoers`, `bashrc`, `utils.sh`: shared utility configuration
   inherited from the project template.
 
+</details>
+
 ## Workflows
 
 Build and enter the container:
@@ -357,18 +368,18 @@ Launch JupyterLab inside the container:
 
 - Brans, J.-P. (1982). PROMETHEE method for multi-criteria decision making.
 - Demsar, J. (2006). Statistical comparisons of classifiers over multiple
-  data sets. Journal of Machine Learning Research, 7, 1-30.
+  data sets. [Journal of Machine Learning Research, 7, 1-30](https://www.jmlr.org/papers/v7/demsar06a.html).
 - Erickson et al. (2020). AutoGluon-Tabular: Robust and Accurate AutoML
-  for Structured Data. arXiv:2003.06505.
+  for Structured Data. [arXiv:2003.06505](https://arxiv.org/abs/2003.06505).
 - Hwang and Yoon (1981). Multiple Attribute Decision Making (TOPSIS).
-- Jimenez et al. (2024). SWE-bench. ICLR.
-- Kong et al. (2025). DSBench. ICLR. arXiv:2409.07703.
+- Jimenez et al. (2024). SWE-bench. ICLR. [arXiv:2310.06770](https://arxiv.org/abs/2310.06770).
+- Kong et al. (2025). DSBench. ICLR. [arXiv:2409.07703](https://arxiv.org/abs/2409.07703).
 - Lacoste et al. (2019). Quantifying the Carbon Emissions of Machine
-  Learning. NeurIPS Climate Change Workshop.
+  Learning. NeurIPS Climate Change Workshop. [arXiv:1910.09700](https://arxiv.org/abs/1910.09700).
 - Luccioni et al. (2023). Estimating the Carbon Footprint of BLOOM.
-  Journal of Machine Learning Research.
-- OpenAI (2024). MLE-bench. arXiv:2410.07095.
+  Journal of Machine Learning Research. [arXiv:2211.02001](https://arxiv.org/abs/2211.02001).
+- OpenAI (2024). MLE-bench. [arXiv:2410.07095](https://arxiv.org/abs/2410.07095).
 - Patterson et al. (2021). Carbon Emissions and Large Neural Network
-  Training. arXiv:2104.10350.
+  Training. [arXiv:2104.10350](https://arxiv.org/abs/2104.10350).
 - Strubell et al. (2019). Energy and Policy Considerations for Deep
-  Learning in NLP. ACL.
+  Learning in NLP. ACL. [arXiv:1906.02243](https://arxiv.org/abs/1906.02243).
